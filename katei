@@ -1,0 +1,103 @@
+#!/bin/env ruby
+require 'redcarpet'
+require 'fileutils'
+
+MYPWD = Dir.pwd
+
+CONTENT_LOCATION = 'content'
+OUTPUT_LOCATION = 'output'
+TEMPLATE_HTML = "#{MYPWD}/template.html"
+BLOG_PER_PAGE = 5
+
+
+# clean up
+FileUtils.rm_rf(OUTPUT_LOCATION)
+FileUtils.mkdir(OUTPUT_LOCATION)
+
+def replace_content(content_file, template_file, is_file: true)
+  renderer = Redcarpet::Render::HTML.new(hard_wrap: true)
+  md = Redcarpet::Markdown.new(renderer, extensions = {})
+  template_in = File.read(template_file)
+  if is_file == true
+    content_html = md.render(File.read(content_file))
+  else
+    content_html = md.render(content_file)
+  end
+  rep = template_in.gsub(/{{content}}/, content_html)
+  return rep
+end
+
+
+def write_content(content_file, content)
+  dirname = File.dirname(content_file)
+  unless File.directory?(dirname)
+    FileUtils.mkdir_p(dirname)
+  end
+  File.open(content_file, "w") {|file| file.puts content}
+end
+
+smap = []
+
+# go through files
+puts(">>> Rendering content")
+Dir.glob("#{CONTENT_LOCATION}/**/") do |content_folder|
+  folder_name = content_folder.delete_prefix("#{CONTENT_LOCATION}/")
+  output_dir = "#{MYPWD}/#{OUTPUT_LOCATION}/#{folder_name}"
+  puts("In /#{folder_name}")
+  Dir.chdir(content_folder) do
+    bloglist = []
+    Dir.glob("*.md") do |content_file|
+      output_file = "#{output_dir}#{content_file.gsub(/\.md$/, '.html')}"
+      puts("\t#{content_file}")
+      dirname = File.dirname(output_file)
+      unless File.directory?(dirname)
+        FileUtils.mkdir_p(dirname)
+      end
+      out = replace_content(content_file, TEMPLATE_HTML)
+      File.open(output_file, "w") {|file| file.puts out}
+
+      if content_file.match?(/^\d+-/)
+        bloglist.append(content_file)
+      end
+      smap.append("/#{folder_name}#{content_file.gsub(/\.md$/, '.html')}")
+    end
+
+    # Compile bloglists ----------------------------------------
+    if bloglist.length > 0
+      puts("\t>>> Blog entries found. Compiling...")
+    end
+    bloglist.sort!.reverse!
+    pages = 1
+    iterations = 1
+    blog_out = ''
+    bloglist.each do |blog|
+      puts("\t\t[#{iterations}/#{bloglist.length}][Page #{pages} (#{BLOG_PER_PAGE} per page)] #{blog}")
+      puts("\t\t\t>>> Adding content")
+      blog_out += File.read(blog) + "\n\n[Permalink](#{blog.gsub(/\.md$/, '.html')})\n\n-----\n\n"
+      if iterations == BLOG_PER_PAGE || iterations == bloglist.length
+        puts("\t\t\t>>> Writing content")
+        if iterations != bloglist.length
+          blog_out += "\n\n[Next Page ---->](page_#{pages+1}.html)"
+        end
+        if pages != 1
+          blog_out += "\n\n[<---- Previous Page](page_#{pages-1}.html) |"
+        end
+        blog_html = replace_content(blog_out, TEMPLATE_HTML, is_file: false)
+        File.open("#{output_dir}/page_#{pages}.html", 'w') {|file| file.puts blog_html}
+        pages += 1
+        blog_out = ''
+        iterations = 1
+      end
+      iterations += 1
+    end
+  end
+end
+
+
+puts(">>> Generating sitemap")
+smap_out = "# Sitemap\n\n"
+smap.each do |page|
+  smap_out += "[#{page}](#{page})\n"
+end
+smap_html = replace_content(smap_out, TEMPLATE_HTML, is_file: false)
+File.open("#{OUTPUT_LOCATION}/sitemap.html", 'w') {|file| file.puts smap_html}
