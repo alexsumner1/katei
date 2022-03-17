@@ -48,7 +48,7 @@ Dir.glob("#{CONTENT_LOCATION}/**/") do |content_folder|
     bloglist = []
     Dir.glob("*.md") do |content_file|
       output_file = "#{output_dir}#{content_file.gsub(/\.md$/, '.html')}"
-      puts("\t#{content_file}")
+      puts("\t[PAGE]#{content_file}")
       dirname = File.dirname(output_file)
       unless File.directory?(dirname)
         FileUtils.mkdir_p(dirname)
@@ -62,6 +62,16 @@ Dir.glob("#{CONTENT_LOCATION}/**/") do |content_folder|
       smap.append("/#{folder_name}#{content_file.gsub(/\.md$/, '.html')}")
     end
 
+    Dir.glob("assets/**/*.*") do |asset_file|
+      puts("\t[ASSET] #{asset_file}")
+      output_file = "#{output_dir}#{asset_file}"
+      dirname = File.dirname(output_file)
+      unless File.directory?(dirname)
+        FileUtils.mkdir_p(dirname)
+      end
+      FileUtils.cp(asset_file, output_file)
+    end
+
     # Compile bloglists ----------------------------------------
     if bloglist.length > 0
       puts("\t>>> Blog entries found. Compiling...")
@@ -73,7 +83,7 @@ Dir.glob("#{CONTENT_LOCATION}/**/") do |content_folder|
     bloglist.each do |blog|
       puts("\t\t[#{iterations}/#{bloglist.length}][Page #{pages} (#{BLOG_PER_PAGE} per page)] #{blog}")
       puts("\t\t\t>>> Adding content")
-      blog_out += File.read(blog) + "\n\n[Permalink](#{blog.gsub(/\.md$/, '.html')})\n\n-----\n\n"
+      blog_out += File.read(blog) + "\n\n[Permalink](#{blog.gsub(/\.md$/, '.html')}) | *#{blog.gsub(/\.md$/, '')}*\n\n-----\n\n"
       if iterations == BLOG_PER_PAGE || iterations == bloglist.length
         puts("\t\t\t>>> Writing content")
         if iterations != bloglist.length
